@@ -13,7 +13,7 @@ async function validateApiKey(req: Request, res: Response, next: NextFunction) {
     console.log("company", company)
 
     if (!company) {
-        throw { status: 401, message: "Wrong API key" }
+        throw { type: "not_allowed", message: "Wrong API key" }
     }
 
     res.locals.company = company
@@ -28,7 +28,7 @@ async function employeeExist(req: Request, res: Response, next: NextFunction) {
     console.log("employeeId", employee)
 
     if (!employee) {
-        throw { status: 404, message: "Employee doesn't exist" }
+        throw { type: "not_found", message: "Employee doesn't exist" }
     }
 
     res.locals.employee = employee
@@ -43,7 +43,7 @@ async function validateCardType(req: Request, res: Response, next: NextFunction)
     const cardType =  await cardRepository.findByTypeAndEmployeeId(type, employeeId)
 
     if (cardType) {
-        throw { status: 409, message: "This emplyee already has a card with this type" }
+        throw { type: "conflict", message: "This emplyee already has a card with this type" }
     }
 
     next()

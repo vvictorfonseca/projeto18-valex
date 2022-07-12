@@ -13,33 +13,33 @@ async function createNewCard(req: Request, res: Response) {
 }
 
 async function activateCard(req: Request, res: Response) {
-    const { id, securityCode, password }: { id: number, securityCode: string, password: string } = req.body;
+    const { cardId, securityCode, password }: { cardId: number, securityCode: string, password: string } = req.body;
 
-    await cardService.activateCard(id, securityCode, password);
+    await cardService.activateCard(cardId, securityCode, password);
 
     return res.sendStatus(201);
 }
 
 async function getBallance(req: Request, res: Response) {
-    const {id}: { id: number} = req.body
+    const {cardId}: { cardId: number} = req.body
 
-    const result = await cardService.getBalance(id);
+    const result = await cardService.getBalance(cardId);
 
     res.send(result);
 }
 
 async function blockCard(req: Request, res: Response) {
-    const { id, password }: { id: number, password: string } = req.body;
+    const { cardId, password }: { cardId: number, password: string } = req.body;
 
-    await cardService.blockCard(id, password);
+    await cardService.blockCard(cardId, password);
 
     return res.sendStatus(200);
 }
 
 async function unlockCard(req: Request, res: Response) {
-    const { id, password }: { id: number, password: string } = req.body;
+    const { cardId, password }: { cardId: number, password: string } = req.body;
 
-    await cardService.unlockCard(id, password);
+    await cardService.unlockCard(cardId, password);
 
     return res.sendStatus(200);
 }

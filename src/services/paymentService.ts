@@ -1,70 +1,31 @@
-import dayjs from "dayjs";
-import bcrypt from "bcrypt";
-
-import * as cardRepository from "../repositories/cardRepository.js"
-import * as businessesRepository from "../repositories/businessRepository.js"
 import * as paymentRepository from "../repositories/paymentRepository.js";
-import * as rechargeRepository from "../repositories/rechargeRepository.js"
+
+import cardExist from "../utils/serviceValidations/cardExist.js";
+import cardExpiration from "../utils/serviceValidations/cardDateExpiration.js";
+import { cardIsActive } from "../utils/serviceValidations/cardActivation.js";
+import correctPassword from "../utils/serviceValidations/correctPassword.js";
+import { cardIsNotBlocked } from "../utils/serviceValidations/cardBlock.js";
+import calculateBalance from "../utils/calculateBalance.js";
+import amountBiggerThanZero from "../utils/serviceValidations/amountBiggerThanZero.js";
+import balanceBiggerThanAmount from "../utils/serviceValidations/balanceBiggerThanAmount.js";
+import businessExist from "../utils/serviceValidations/businessExist.js";
+import cardAndInfoType from "../utils/serviceValidations/cardAndBusinessType.js"
 
 async function payment(cardId: number, businessId: number, amount: number, password: string) {
 
-    const cardEmplyeeInfo = await cardRepository.findById(cardId);
+    await amountBiggerThanZero(amount)
 
-    if (!cardEmplyeeInfo) {
-        throw { type: "not_found", message: "Card doesn't exist" }
-    }
+    const cardEmplyeeInfo = await cardExist(cardId)
+    await cardIsActive(cardEmplyeeInfo)
+    await cardExpiration(cardId)
+    await cardIsNotBlocked(cardId)
+    await correctPassword(cardId, password)
+    await businessExist(businessId)
+    await cardAndInfoType(cardId, businessId)
 
-    if (cardEmplyeeInfo.password == null) {
-        throw { type: "bad_request", message: "Card is not activated" }
-    }
-
-    if (dayjs(cardEmplyeeInfo.expirationDate).isBefore(dayjs(Date.now()).format("MM-YY"))) {
-        throw { type: "bad_Request", message: "Card expired!" };
-    }
-
-    if (cardEmplyeeInfo.isBlocked === true) {
-        throw { type: "bad_request", message: "Card is not blocked" }
-    }
-
-    const isCorrectPassword = bcrypt.compareSync(password, cardEmplyeeInfo.password);
-
-    if (!isCorrectPassword) {
-        throw { type: "not_found", message: "invalid password" }
-    }
-
-    const businessExist = await businessesRepository.findById(businessId)
-
-    if (!businessExist) {
-        throw { type: "not_found", message: "Business doesn't exist" }
-    }
-
-    if (amount <= 0) {
-        throw { type: "bad_Request", message: "amount must be bigger than 0" };
-    }
-
-    if (cardEmplyeeInfo.type != businessExist.type) {
-        throw { type: "bad_Request", message: "different establishments" };
-    }
-
-    const payments = await paymentRepository.findByCardId(cardId)
-    const recharges = await rechargeRepository.findByCardId(cardId)
-
-    let paymentsAmount = 0;
-    let rechargesAmount = 0;
-
-    payments.forEach(
-        (info) => paymentsAmount += info.amount
-    )
-
-    recharges.forEach(
-        (info) => rechargesAmount += info.amount
-    )
-
-    let resultAmount = rechargesAmount - paymentsAmount;
-
-    if (resultAmount < amount) {
-        throw { type: "bad_Request", message: "insufficient funds" };
-    }
+    const res = await calculateBalance(cardId)
+    const resultAmount = res.resultAmount
+    await balanceBiggerThanAmount(resultAmount, amount)
 
     const paymentObj = { cardId, businessId, amount}
     await paymentRepository.insert(paymentObj)

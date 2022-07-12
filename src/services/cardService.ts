@@ -1,23 +1,27 @@
 import { faker } from '@faker-js/faker';
-import dayjs from 'dayjs'
-import Cryptr from 'cryptr'
 import bcrypt from "bcrypt";
 
 import * as cardRepository from "../repositories/cardRepository.js";
-import * as paymentRepository from "../repositories/paymentRepository.js";
-import * as rechargeRepository from "../repositories/rechargeRepository.js"
 
 import formatName from "../utils/formatName.js";
+import formatDate from "../utils/formatDate.js";
+import { encryptCVV, decryptCVV, encryptedPassword} from "../utils/encryptNumbers.js";
+import cardExist from "../utils/serviceValidations/cardExist.js";
+import cardExpiration from "../utils/serviceValidations/cardDateExpiration.js";
+import { cardIsNotActive } from "../utils/serviceValidations/cardActivation.js";
+import correctCvv from "../utils/serviceValidations/correctCvv.js";
+import correctPassword from "../utils/serviceValidations/correctPassword.js";
+import { cardIsBlocked, cardIsNotBlocked } from "../utils/serviceValidations/cardBlock.js";
+import calculateBalance from "../utils/calculateBalance.js";
 
 async function createCard(employee: { id: number; fullName: string }, cardType: cardRepository.TransactionTypes) {
     
     const cardNumber = faker.finance.creditCardNumber();
     const fullNameFormat = formatName(employee.fullName);
-    const cardExpiration = dayjs(Date.now()).add(5, "year").format("MM/YY");
+    const cardExpiration = formatDate();
     const cardCvv = faker.finance.creditCardCVV();
     console.log("cardCvv", cardCvv)
-    const cryptr = new Cryptr('SENHASECRETAKEY');
-    const cardCvvEncrypt = cryptr.encrypt(cardCvv);
+    const cardCvvEncrypt = encryptCVV(cardCvv)
 
     const cardData = {
         employeeId: employee.id,
@@ -32,32 +36,19 @@ async function createCard(employee: { id: number; fullName: string }, cardType: 
         type: cardType,
     }
 
-    await cardRepository.insert(cardData)
+    const createNewCard = await cardRepository.insert(cardData)
+    return createNewCard
 }
 
-async function activateCard(id: number, securityCode: string, password: string) {
+async function activateCard(cardId: number, securityCode: string, password: string) {
 
-    const cardEmplyeeInfo = await cardRepository.findById(id);
-
-    if (!cardEmplyeeInfo) {
-        throw { type: "not_found", message: "Card doesn't exist" }
-    }
-
-    if (dayjs(cardEmplyeeInfo.expirationDate).isBefore(dayjs(Date.now()).format("MM-YY"))) {
-        throw { type: "bad_Request", message: "Card expired!" };
-    }
-
-    if (cardEmplyeeInfo.password != null){
-        throw { type: "bad_request", message: "Password already registered" }
-    }
-
+    const cardEmplyeeInfo = await cardExist(cardId)
     const cardCvv = cardEmplyeeInfo.securityCode;
-    const cryptr = new Cryptr('SENHASECRETAKEY');
-    const decryptCardCvv = cryptr.decrypt(cardCvv);
+    const decryptCardCvv = decryptCVV(cardCvv)
 
-    if (securityCode != decryptCardCvv) {
-        throw { type: "bad_request", message: "Wrong cvv number" }
-    }
+    await cardExpiration(cardId)
+    await cardIsNotActive(cardEmplyeeInfo)
+    await correctCvv(securityCode, decryptCardCvv)
 
     if (password.length > 4) {
         throw { type: "bad_request", message: "Password must have 4 characters" }
@@ -78,52 +69,29 @@ async function activateCard(id: number, securityCode: string, password: string) 
         type: cardEmplyeeInfo.type,
     }
 
-    await cardRepository.update(cardEmplyeeInfo.id, updateCard);
+    await cardRepository.update(cardId, updateCard);
 }
 
-async function getBalance(id: number) {
-    const payments = await paymentRepository.findByCardId(id)
-    const recharges = await rechargeRepository.findByCardId(id)
-
-    let paymentsAmount = 0;
-    let rechargesAmount = 0;
-
-    payments.forEach(
-        (info) => paymentsAmount += info.amount
-    )
-
-    recharges.forEach(
-        (info) => rechargesAmount += info.amount
-    )
-
-    let resultAmount = rechargesAmount - paymentsAmount;
+async function getBalance(cardId: number) {
+    await cardExist(cardId)
+    const res = await calculateBalance(cardId)
 
     const result =  {
-        "balance": resultAmount,
-        "transactions": [...payments],
-        "recharges": [...recharges]
+        "balance": res.resultAmount,
+        "transactions": [...res.payments],
+        "recharges": [...res.recharges]
     }
 
     return result
 }
 
-async function blockCard(id: number, password: string) {
+async function blockCard(cardId: number, password: string) {
 
-    const cardEmplyeeInfo = await cardRepository.findById(id);
+    const cardEmplyeeInfo = await cardExist(cardId)
 
-    if (!cardEmplyeeInfo) {
-        throw { type: "not_found", message: "Card doesn't exist" }
-    }
-
-    if (cardEmplyeeInfo.isBlocked === true) {
-        throw { type: "bad_request", message: "card already disblockes" }
-    }
-
-    const isCorrectPassword = bcrypt.compareSync(password, cardEmplyeeInfo.password);
-
-    if (!isCorrectPassword) {
-        throw { type: "not_found", message: "invalid password" }
-    }
+    await cardIsNotBlocked(cardId)
+    await cardExpiration(cardId)
+    await correctPassword(cardId, password)
 
     const encryptedPassword = bcrypt.hashSync(password, 10);
 
@@ -140,26 +108,16 @@ async function blockCard(id: number, password: string) {
         type: cardEmplyeeInfo.type,
     }
 
-    await cardRepository.update(cardEmplyeeInfo.id, updateCard);
+    await cardRepository.update(cardId, updateCard);
 }
 
-async function unlockCard(id: number, password: string) {
+async function unlockCard(cardId: number, password: string) {
 
-    const cardEmplyeeInfo = await cardRepository.findById(id);
+    const cardEmplyeeInfo = await cardExist(cardId)
 
-    if (!cardEmplyeeInfo) {
-        throw { type: "not_found", message: "Card doesn't exist" }
-    }
-
-    if (cardEmplyeeInfo.isBlocked === false) {
-        throw { type: "bad_request", message: "card already blocked" }
-    }
-
-    const isCorrectPassword = bcrypt.compareSync(password, cardEmplyeeInfo.password);
-
-    if (!isCorrectPassword) {
-        throw { type: "not_found", message: "invalid password" }
-    }
+    await cardIsBlocked(cardId)
+    await cardExpiration(cardId)
+    await correctPassword(cardId, password)
 
     const encryptedPassword = bcrypt.hashSync(password, 10);
 
@@ -176,7 +134,7 @@ async function unlockCard(id: number, password: string) {
         type: cardEmplyeeInfo.type,
     }
 
-    await cardRepository.update(cardEmplyeeInfo.id, updateCard);
+    await cardRepository.update(cardId, updateCard);
 }
 
 const cardService = {

@@ -1,27 +1,16 @@
-import dayjs from "dayjs";
-
 import * as rechargeRepository from "../repositories/rechargeRepository.js"
-import * as cardRepository from "../repositories/cardRepository.js"
+
+import cardExist from "../utils/serviceValidations/cardExist.js";
+import cardExpiration from "../utils/serviceValidations/cardDateExpiration.js";
+import { cardIsActive } from "../utils/serviceValidations/cardActivation.js";
+import amountBiggerThanZero from "../utils/serviceValidations/amountBiggerThanZero.js";
 
 async function rechargeEmplyeeCard(cardId: number, amount: number){
 
-    const cardEmplyeeInfo = await cardRepository.findById(cardId);
-
-    if (!cardEmplyeeInfo) {
-        throw { type: "not_found", message: "Card doesn't exist" }
-    }
-
-    if (cardEmplyeeInfo.password == null) {
-        throw { type: "bad_request", message: "Card is not activated" }
-    }
-
-    if (dayjs(cardEmplyeeInfo.expirationDate).isBefore(dayjs(Date.now()).format("MM-YY"))) {
-        throw { type: "bad_Request", message: "Card expired!" };
-    }
-
-    if (amount <= 0) {
-        throw { type: "bad_Request", message: "amount must be bigger than 0" };
-    }
+    await amountBiggerThanZero(amount)
+    const cardEmplyeeInfo = await cardExist(cardId);
+    await cardIsActive(cardEmplyeeInfo);
+    await cardExpiration(cardId)
 
     const rechargeObject = { cardId, amount }
     await rechargeRepository.insert(rechargeObject)

@@ -2,7 +2,7 @@ import Joi from "joi";
 
 export const createCardSchema = Joi.object({
     employeeId: Joi.number().required(),
-    cardType: Joi.equal(
+    type: Joi.equal(
         "groceries",
         "restaurant",
         "transport",

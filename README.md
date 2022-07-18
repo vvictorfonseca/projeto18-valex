@@ -26,7 +26,7 @@ https://valexproject.herokuapp.com/
 ```
 API:
 
-```
+```bash
 - POST /insert (autenticada)
     - Rota para criar e cadastrar um novo cartão, usando o identificador do empregado e o tipo do cartão.
     - headers: { x-api-key: apiKey }
@@ -35,7 +35,8 @@ API:
         "employeeId": 1,
         "type": "groceries"
     }
-
+```
+```bash
 - PUT /update
     - Rota para ativar o cartão criado, usando o identificador do cartão, seu código de segurança e uma senha.
     - body: 
@@ -44,14 +45,16 @@ API:
         "securityCode": "633",
         "password": "1234"
     }
-
+```
+```bash
 - GET /balance
     - Rota para listar todos as transações, recargas e também o saldo atual do cartão, usando seu identificador.
     - body: 
     {
         "cardId": 1
     }
-
+```
+```bash
 - PUT /block
     - Rota para bloquear o cartão, usando seu identificador e senha.
     - body: 
@@ -59,7 +62,8 @@ API:
         "cardId": 1,
         "password": "1234"
     }
-
+```
+```bash
 - PUT /unlock
     - Rota para desbloquear o cartão, usando seu identificador e senha.
     - body: 
@@ -67,7 +71,8 @@ API:
         "cardId": 1,
         "password": "1234"
     }
-
+```
+```bash
 - POST /recharge (autenticada)
     - Rota para fazer uma recarga no cartão, usando seu identificador e o valor a ser colocado
     - headers: { x-api-key: apiKey }
@@ -76,7 +81,8 @@ API:
         "cardId": 1,
         "amount": 500
     }
-
+```
+```bash
 - POST /payment
     - Rota para fazer uma compra, usando seu identificador, identificador do estabelecimento, sua senha e o valor a ser pago.
     - body: 
@@ -86,3 +92,4 @@ API:
         "password": "1234",
         "amount": 35
     }
+```
